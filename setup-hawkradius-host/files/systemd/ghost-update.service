@@ -1,0 +1,11 @@
+[Unit]
+Description=Update Ghost Backend
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ghost
+ExecStartPre=+/usr/bin/npm update -g
+ExecStart=ghost update --auto --no-prompt --no-restart --dir /var/www/ghost
+ExecStartPost=+/usr/bin/systemctl restart ghost.service
+Environment="GHOST_CLI_PRE_CHECKS=false"

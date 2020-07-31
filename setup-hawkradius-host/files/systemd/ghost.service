@@ -1,0 +1,31 @@
+[Unit]
+Description=Hawkradius Backend
+Requires=network-online.target local-fs.target
+
+[Service]
+Type=simple
+PIDFile=/run/ghost/pid
+StateDirectory=ghost-content
+RuntimeDirectory=ghost
+WorkingDirectory=/var/www/ghost
+User=ghost
+Group=ghost
+ExecStart=/usr/bin/ghost run --dir /var/www/ghost
+ExecStop=/usr/bin/ghost stop --dir /var/www/ghost
+Restart=always
+SyslogIdentifier=ghost
+Environment="NODE_ENV=production" "imageOptimization__resize=false" "compress=false" "caching__frontend__maxAge=3600"
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+RemoveIPC=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateDevices=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=Renew Let's Encrypt certificates using acme.sh
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStartPre=/opt/acme.sh --home '/opt' --config-home '/var/lib/acme.sh' --upgrade
+ExecStart=/opt/acme.sh --config-home '/var/lib/acme.sh' --cron --standalone
+SuccessExitStatus=0 2

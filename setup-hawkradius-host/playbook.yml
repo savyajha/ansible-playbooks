@@ -1,0 +1,109 @@
+- hosts: hawkradius-host
+  vars_files:
+      - vars/default.yml
+
+  tasks:
+      # Task 1: Copy over the relevant files to where they need to go
+      - name: Copy systemd files
+        copy:
+            src: files/systemd/
+            dest: /etc/systemd/system/
+      - name: Copy apt unattended upgrades file
+        copy:
+            src: files/apt/
+            dest: /etc/apt/apt.conf.d/
+      - name: Copy nginx folder to correct place
+        copy:
+            src: files/nginx
+            dest: /etc/nginx
+      - name: Copy nftables file to correct place
+        copy:
+            src: files/nftables.conf
+            dest: /etc/nftables.conf
+      - name: Get acme.sh
+        command: curl -sSLo /root/acme.sh https://raw.githubusercontent.com/acmesh-official/acme.sh/master/acme.sh
+      - name: Make sure cert location is accessible to nginx
+        file:
+            path: /etc/ssl/private
+            state: directory
+            owner: www-data
+      - name: Create location to store certs
+        file:
+            path: /etc/ssl/private/hawkradius.com
+            state: directory
+            owner: www-data
+            mode: '0700'
+
+      # Task 2: Create users and chown directories where needed
+      - name: Create ghost user
+        user:
+            name: ghost
+            state: present
+            group: ghost
+            home: /var/www/ghost
+            password: '!'
+            system: yes
+            shell: /usr/bin/false
+      - name: Create acme home directory
+        file:
+            path: /var/lib/acme.sh
+            mode: '0700'
+
+      # Task 3: Install the relevant packages
+      - name: Install acme.sh
+        command: sh /root/acme.sh --install --home "/opt" --config-home "/var/lib/acme.sh" --nocron --noprofile --no-color
+      - name: Add repos for node.js
+        shell: curl -sL https://deb.nodesource.com/setup_12.x | bash
+      - name: Remove unneeded packages
+        apt:
+            name: rsyslog cron
+            state: absent
+            purge: yes
+            autoremove: yes
+            autoclean: yes
+            force_apt_get: yes
+      - name: Update and upgrade the system
+        apt:
+            update_cache: yes
+            upgrade: dist
+            force_apt_get: yes
+      - name: Install packages of interest
+        apt:
+            name: nginx-light nodejs unattended-upgrades nftables
+            state: latest
+            force_apt_get: yes
+            install_recommends: no
+      - name: Install ghost-cli
+        npm:
+            name: ghost-cli
+            state: latest
+            global: yes
+            production: yes
+      - name: Install Ghost
+        become: ghost
+        command: /usr/bin/ghost install --no-stack --no-setup-nginx --no-setup-ssl --no-setup-systemd --no-setup-linux-user --no-setup-migrate --no-setup-mysql --no-start --no-enable --no-prompt --url https://hawkradius.com --db sqlite3 --dbpath /var/www/ghost/content/data/hawkradius.db --dir /var/www/ghost
+
+      # Task 4: Enable the various services required
+      - name: Get certificate for Hawkradius
+        command: /opt/acme.sh --config-home '/var/lib/acme.sh' --issue -d hawkradius.com -d www.hawkradius.com -w /var/www/html
+      - name: Install certificates so that nginx can find them
+        command: /opt/acme.sh --config-home '/var/lib/acme.sh' --install-cert -d hawkradius.com --key-file /etc/ssl/private/go7box.xyz/key.pem --fullchain-file /etc/ssl/private/go7box.xyz/fullchain.pem
+      - name: Enable the blog
+        systemd:
+            name: ghost.service
+            enabled: yes
+            state: started
+      - name: Enable cert renewal timer
+        systemd:
+            name: acme_letsencrypt.timer
+            enabled: yes
+            state: started
+      - name: Get first set of certificates
+        systemd:
+            name: acme_letsencrypt.service
+            state: started
+      - name: Explicitly enable firewall
+        systemd:
+            name: nftables.service
+            state: started
+            enabled: yes
